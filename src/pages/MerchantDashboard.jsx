@@ -9,7 +9,7 @@ const CATEGORIES = {
 }
 
 export default function MerchantDashboard() {
-  const { user, profile, saveProfile } = useAuth()
+  const { user, profile, saveProfile, subscription: storeSubscription, fetchSubscription } = useAuth()
   const [activeTab, setActiveTab] = useState('offers')
   const [offers, setOffers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -20,39 +20,29 @@ export default function MerchantDashboard() {
     offer_text: '', description: '', valid_until: ''
   })
   const [submitting, setSubmitting] = useState(false)
-  const [merchantPlan, setMerchantPlan] = useState('free')
-  const [merchantProRenewDate, setMerchantProRenewDate] = useState(null)
 
-  const fetchSub = async () => {
-    try {
-      const res = await fetch(`/api/subscription-status?userEmail=${user.email}`)
-      const data = await res.json()
-      setMerchantPlan(data.merchantPro?.active ? 'merchant_pro' : 'free')
-      if (data.merchantPro?.currentPeriodEnd) {
-        setMerchantProRenewDate(
-          new Date(data.merchantPro.currentPeriodEnd).toLocaleDateString('en-US', {
-            month: 'short', day: 'numeric', year: 'numeric'
-          })
-        )
-      }
-    } catch {}
-  }
+  // Derive merchant plan from store subscription
+  const merchantPlan = storeSubscription?.merchantPro?.active ? 'merchant_pro' : 'free'
+  const merchantProRenewDate = storeSubscription?.merchantPro?.currentPeriodEnd
+    ? new Date(storeSubscription.merchantPro.currentPeriodEnd).toLocaleDateString('en-US', {
+        month: 'short', day: 'numeric', year: 'numeric'
+      })
+    : null
 
-  useEffect(() => {
-    if (user) fetchSub()
-  }, [user])
-
+  // Re-fetch after Stripe redirect
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     if (params.get('subscription') === 'success') {
       window.history.replaceState({}, '', '/merchant')
-      if (user) setTimeout(() => fetchSub(), 2000)
+      setTimeout(() => fetchSubscription(), 2000)
     }
-  }, [user])
+  }, [])
 
   useEffect(() => {
     if (user) fetchOffers()
   }, [user])
+
+  // ... rest of the file unchanged from here
 
   const fetchOffers = async () => {
     try {

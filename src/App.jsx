@@ -21,9 +21,9 @@ function CustomerLayout() {
         <Route path="/explore" element={<Explore />} />
         <Route path="/saved" element={<Saved />} />
         <Route path="/profile" element={<Profile />} />
-        <Route path="*" element={<Navigate to="/home" />} />
         <Route path="/pricing" element={<Pricing />} />
         <Route path="/invoices" element={<Invoices />} />
+        <Route path="*" element={<Navigate to="/home" />} />
       </Routes>
       <NavBar />
     </div>
@@ -37,7 +37,6 @@ export default function App() {
     initialize()
   }, [])
 
-  // Handle post-OAuth role assignment
   useEffect(() => {
     const handlePostOAuth = async () => {
       if (!user) return
@@ -46,7 +45,6 @@ export default function App() {
       const intendedRole = localStorage.getItem('citywallet_intended_role')
 
       if (profile === null) {
-        // Brand new user — create profile with intended role
         if (intendedRole) {
           localStorage.removeItem('citywallet_intended_role')
           await saveProfile({
@@ -56,7 +54,6 @@ export default function App() {
           })
         }
       } else {
-        // Returning user — if they clicked merchant card, switch to merchant mode
         if (intendedRole === 'merchant' && profile.is_merchant) {
           localStorage.removeItem('citywallet_intended_role')
           await saveProfile({ current_mode: 'merchant' })
@@ -104,6 +101,9 @@ export default function App() {
             <Route path="/merchant-onboarding" element={<MerchantOnboarding />} />
             <Route path="/merchant" element={<MerchantDashboard />} />
             <Route path="/onboarding" element={<Onboarding />} />
+            {/* Standalone routes — accessible from any mode */}
+            <Route path="/invoices" element={<Invoices />} />
+            <Route path="/pricing" element={<Pricing />} />
             <Route path="/*" element={
               <RequireSetup profile={profile}>
                 <CustomerLayout />
@@ -117,7 +117,6 @@ export default function App() {
 }
 
 function RequireSetup({ profile, children }) {
-  // Still loading profile
   if (profile === undefined) {
     return (
       <div style={{
@@ -137,7 +136,6 @@ function RequireSetup({ profile, children }) {
     )
   }
 
-  // Brand new user — no profile yet
   if (profile === null) {
     const intendedRole = localStorage.getItem('citywallet_intended_role') || 'customer'
     if (intendedRole === 'merchant') {
@@ -146,11 +144,9 @@ function RequireSetup({ profile, children }) {
     return <Navigate to="/onboarding" />
   }
 
-  // Merchant in merchant mode → merchant dashboard
   if (profile.is_merchant && profile.current_mode === 'merchant') {
     return <Navigate to="/merchant" />
   }
 
-  // Everyone else → customer layout
   return children
 }

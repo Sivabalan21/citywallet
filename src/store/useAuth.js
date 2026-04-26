@@ -5,7 +5,8 @@ export const useAuth = create((set, get) => ({
   user: null,
   session: null,
   loading: true,
-  profile: undefined, // undefined = not yet loaded, null = loaded but no profile
+  profile: undefined,
+  subscription: null,
 
   initialize: async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -13,8 +14,9 @@ export const useAuth = create((set, get) => ({
     set({ session, user, loading: false })
     if (user) {
       await get().loadProfile(user.id)
+      await get().fetchSubscription()
     } else {
-      set({ profile: null })
+      set({ profile: null, subscription: null })
     }
 
     supabase.auth.onAuthStateChange(async (_event, session) => {
@@ -22,10 +24,21 @@ export const useAuth = create((set, get) => ({
       set({ session, user, loading: false })
       if (user) {
         await get().loadProfile(user.id)
+        await get().fetchSubscription()
       } else {
-        set({ profile: null })
+        set({ profile: null, subscription: null })
       }
     })
+  },
+
+  fetchSubscription: async () => {
+    const { user } = get()
+    if (!user?.email) return
+    try {
+      const res = await fetch(`/api/subscription-status?userEmail=${user.email}`)
+      const data = await res.json()
+      set({ subscription: data })
+    } catch {}
   },
 
   loadProfile: async (userId) => {
@@ -66,6 +79,6 @@ export const useAuth = create((set, get) => ({
   signOut: async () => {
     await supabase.auth.signOut()
     localStorage.removeItem('citywallet_intended_role')
-    set({ user: null, session: null, profile: null })
+    set({ user: null, session: null, profile: null, subscription: null })
   }
 }))
