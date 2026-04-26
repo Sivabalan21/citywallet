@@ -17,38 +17,36 @@ export default function MerchantDashboard() {
   const [showScanner, setShowScanner] = useState(false)
   const [scanResult, setScanResult] = useState(null)
   const [newOffer, setNewOffer] = useState({
-    offer_text: '',
-    description: '',
-    valid_until: ''
+    offer_text: '', description: '', valid_until: ''
   })
   const [submitting, setSubmitting] = useState(false)
   const [merchantPlan, setMerchantPlan] = useState('free')
+  const [merchantProRenewDate, setMerchantProRenewDate] = useState(null)
+
+  const fetchSub = async () => {
+    try {
+      const res = await fetch(`/api/subscription-status?userEmail=${user.email}`)
+      const data = await res.json()
+      setMerchantPlan(data.merchantPro?.active ? 'merchant_pro' : 'free')
+      if (data.merchantPro?.currentPeriodEnd) {
+        setMerchantProRenewDate(
+          new Date(data.merchantPro.currentPeriodEnd).toLocaleDateString('en-US', {
+            month: 'short', day: 'numeric', year: 'numeric'
+          })
+        )
+      }
+    } catch {}
+  }
 
   useEffect(() => {
-    const checkSub = async () => {
-      try {
-        const res = await fetch(`/api/subscription-status?userEmail=${user.email}`)
-        const data = await res.json()
-        setMerchantPlan(data.merchantPro?.active ? 'merchant_pro' : 'free')
-      } catch {}
-    }
-    if (user) checkSub()
+    if (user) fetchSub()
   }, [user])
 
-  // Re-fetch after Stripe redirect
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     if (params.get('subscription') === 'success') {
       window.history.replaceState({}, '', '/merchant')
-      if (user) {
-        setTimeout(async () => {
-          try {
-            const res = await fetch(`/api/subscription-status?userEmail=${user.email}`)
-            const data = await res.json()
-            setMerchantPlan(data.merchantPro?.active ? 'merchant_pro' : 'free')
-          } catch {}
-        }, 2000)
-      }
+      if (user) setTimeout(() => fetchSub(), 2000)
     }
   }, [user])
 
@@ -217,8 +215,7 @@ export default function MerchantDashboard() {
           <div key={stat.label} style={{
             background: 'var(--bg-card)',
             borderRadius: '12px', padding: '12px',
-            border: '1px solid var(--border)',
-            textAlign: 'center'
+            border: '1px solid var(--border)', textAlign: 'center'
           }}>
             <p style={{
               fontSize: '22px', fontWeight: '700',
@@ -234,35 +231,54 @@ export default function MerchantDashboard() {
         ))}
       </div>
 
-      {/* Merchant Pro status or upgrade banner */}
+      {/* Merchant Pro status OR upgrade banner */}
       {merchantPlan === 'merchant_pro' ? (
         <div style={{
           margin: '0 1rem 16px',
           background: 'rgba(245,158,11,0.15)',
           border: '1px solid rgba(245,158,11,0.3)',
-          borderRadius: '14px', padding: '12px 14px',
-          display: 'flex', alignItems: 'center',
-          justifyContent: 'space-between'
+          borderRadius: '14px', padding: '14px'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '16px' }}>⚡</span>
-            <div>
-              <p style={{ fontSize: '13px', fontWeight: '600', margin: 0, color: 'var(--accent-gold)' }}>
-                Merchant Pro — Active
-              </p>
-              <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0 }}>
-                Unlimited offers · Featured placement
-              </p>
-            </div>
-          </div>
-          <span style={{
-            fontSize: '11px', padding: '2px 8px',
-            background: 'rgba(16,185,129,0.15)',
-            border: '1px solid rgba(16,185,129,0.3)',
-            borderRadius: '20px', color: '#10B981', fontWeight: '600'
+          <div style={{
+            display: 'flex', alignItems: 'center',
+            justifyContent: 'space-between', marginBottom: '10px'
           }}>
-            ✅ Active
-          </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '16px' }}>⚡</span>
+              <div>
+                <p style={{
+                  fontSize: '13px', fontWeight: '600',
+                  margin: 0, color: 'var(--accent-gold)'
+                }}>
+                  Merchant Pro — Active
+                </p>
+                <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0 }}>
+                  {merchantProRenewDate ? `Renews ${merchantProRenewDate}` : 'Unlimited offers · Featured placement'}
+                </p>
+              </div>
+            </div>
+            <span style={{
+              fontSize: '11px', padding: '2px 8px',
+              background: 'rgba(16,185,129,0.15)',
+              border: '1px solid rgba(16,185,129,0.3)',
+              borderRadius: '20px', color: '#10B981', fontWeight: '600'
+            }}>
+              ✅ Active
+            </span>
+          </div>
+          <button
+            onClick={() => window.location.href = '/invoices'}
+            style={{
+              width: '100%', padding: '9px',
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--border)',
+              borderRadius: '10px', color: 'var(--text-secondary)',
+              fontSize: '12px', fontWeight: '500',
+              cursor: 'pointer', fontFamily: 'DM Sans, sans-serif'
+            }}
+          >
+            🧾 View Invoices & Billing
+          </button>
         </div>
       ) : (
         <div style={{
@@ -274,7 +290,10 @@ export default function MerchantDashboard() {
           justifyContent: 'space-between', gap: '10px'
         }}>
           <div>
-            <p style={{ fontSize: '13px', fontWeight: '600', margin: '0 0 2px', color: 'var(--accent-gold)' }}>
+            <p style={{
+              fontSize: '13px', fontWeight: '600',
+              margin: '0 0 2px', color: 'var(--accent-gold)'
+            }}>
               ⚡ Upgrade to Merchant Pro
             </p>
             <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>
@@ -312,7 +331,7 @@ export default function MerchantDashboard() {
 
       {/* Tabs */}
       <div style={{
-        display: 'flex', gap: '0',
+        display: 'flex',
         margin: '0 1rem',
         background: 'var(--bg-card)',
         borderRadius: '12px', padding: '4px',
@@ -366,13 +385,11 @@ export default function MerchantDashboard() {
             <div style={{
               background: 'var(--bg-card)',
               borderRadius: '16px', padding: '16px',
-              border: '1px solid var(--border)',
-              marginBottom: '16px'
+              border: '1px solid var(--border)', marginBottom: '16px'
             }}>
               <p style={{ fontSize: '14px', fontWeight: '600', margin: '0 0 14px' }}>
                 New Offer
               </p>
-
               <div style={{ marginBottom: '10px' }}>
                 <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 5px' }}>
                   Offer text *
@@ -391,7 +408,6 @@ export default function MerchantDashboard() {
                   }}
                 />
               </div>
-
               <div style={{ marginBottom: '10px' }}>
                 <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 5px' }}>
                   Description (optional)
@@ -407,12 +423,10 @@ export default function MerchantDashboard() {
                     border: '1px solid var(--border)',
                     borderRadius: '10px', color: 'var(--text-primary)',
                     fontSize: '13px', fontFamily: 'DM Sans, sans-serif',
-                    outline: 'none', resize: 'none',
-                    boxSizing: 'border-box'
+                    outline: 'none', resize: 'none', boxSizing: 'border-box'
                   }}
                 />
               </div>
-
               <div style={{ marginBottom: '14px' }}>
                 <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 5px' }}>
                   Valid until (optional)
@@ -431,7 +445,6 @@ export default function MerchantDashboard() {
                   }}
                 />
               </div>
-
               <button
                 onClick={handleAddOffer}
                 disabled={submitting || !newOffer.offer_text.trim()}
@@ -439,8 +452,8 @@ export default function MerchantDashboard() {
                   width: '100%', padding: '12px',
                   background: !newOffer.offer_text.trim() ? 'var(--border)' : 'var(--accent-violet)',
                   border: 'none', borderRadius: '12px',
-                  color: 'white', fontSize: '14px',
-                  fontWeight: '600', cursor: !newOffer.offer_text.trim() ? 'not-allowed' : 'pointer',
+                  color: 'white', fontSize: '14px', fontWeight: '600',
+                  cursor: !newOffer.offer_text.trim() ? 'not-allowed' : 'pointer',
                   fontFamily: 'DM Sans, sans-serif'
                 }}
               >
@@ -454,14 +467,9 @@ export default function MerchantDashboard() {
               Loading offers...
             </p>
           ) : offers.length === 0 ? (
-            <div style={{
-              textAlign: 'center', padding: '3rem 1rem',
-              color: 'var(--text-secondary)'
-            }}>
+            <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-secondary)' }}>
               <div style={{ fontSize: '48px', marginBottom: '1rem' }}>📋</div>
-              <p style={{ fontSize: '16px', fontWeight: '600', marginBottom: '8px' }}>
-                No offers yet
-              </p>
+              <p style={{ fontSize: '16px', fontWeight: '600', marginBottom: '8px' }}>No offers yet</p>
               <p style={{ fontSize: '14px', color: 'var(--text-muted)' }}>
                 Add your first offer to start reaching nearby customers
               </p>
@@ -486,9 +494,7 @@ export default function MerchantDashboard() {
                       {offer.offer_text}
                     </p>
                     {offer.description && (
-                      <p style={{
-                        fontSize: '12px', color: 'var(--text-secondary)', margin: '0 0 6px'
-                      }}>
+                      <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '0 0 6px' }}>
                         {offer.description}
                       </p>
                     )}
@@ -525,13 +531,10 @@ export default function MerchantDashboard() {
                     <button
                       onClick={() => handleDeleteOffer(offer.id)}
                       style={{
-                        padding: '6px 10px',
-                        background: 'none',
-                        border: '1px solid var(--border)',
-                        borderRadius: '8px',
-                        color: 'var(--text-muted)',
-                        fontSize: '11px', cursor: 'pointer',
-                        fontFamily: 'DM Sans, sans-serif'
+                        padding: '6px 10px', background: 'none',
+                        border: '1px solid var(--border)', borderRadius: '8px',
+                        color: 'var(--text-muted)', fontSize: '11px',
+                        cursor: 'pointer', fontFamily: 'DM Sans, sans-serif'
                       }}
                     >
                       Delete
@@ -611,32 +614,28 @@ export default function MerchantDashboard() {
                   </p>
                 )}
               </div>
-
               {scanResult.valid && !scanResult.redeemed && (
                 <button
                   onClick={handleRedeem}
                   style={{
                     width: '100%', padding: '16px',
-                    background: '#10B981',
-                    border: 'none', borderRadius: '14px',
-                    color: 'white', fontSize: '15px',
-                    fontWeight: '600', cursor: 'pointer',
-                    fontFamily: 'DM Sans, sans-serif',
+                    background: '#10B981', border: 'none',
+                    borderRadius: '14px', color: 'white',
+                    fontSize: '15px', fontWeight: '600',
+                    cursor: 'pointer', fontFamily: 'DM Sans, sans-serif',
                     marginBottom: '10px'
                   }}
                 >
                   ✅ Confirm Redemption
                 </button>
               )}
-
               <button
                 onClick={() => setScanResult(null)}
                 style={{
                   width: '100%', padding: '14px',
                   background: 'var(--bg-card)',
                   border: '1px solid var(--border)',
-                  borderRadius: '14px',
-                  color: 'var(--text-secondary)',
+                  borderRadius: '14px', color: 'var(--text-secondary)',
                   fontSize: '14px', fontWeight: '500',
                   cursor: 'pointer', fontFamily: 'DM Sans, sans-serif'
                 }}

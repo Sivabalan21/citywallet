@@ -47,15 +47,11 @@ export default function Profile() {
     if (user) fetchSubscription()
   }, [user])
 
-  // Re-fetch after Stripe redirect
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     if (params.get('subscription') === 'success') {
       window.history.replaceState({}, '', '/profile')
-      if (user) {
-        // Give Stripe a moment to process then re-fetch
-        setTimeout(() => fetchSubscription(), 2000)
-      }
+      if (user) setTimeout(() => fetchSubscription(), 2000)
     }
   }, [user])
 
@@ -71,7 +67,6 @@ export default function Profile() {
         setEditCategories(prefs.categories || [])
         setEditBudget(prefs.budget || 'mid')
       }
-
       const { data: offers } = await supabase
         .from('saved_offers')
         .select('status')
@@ -114,12 +109,10 @@ export default function Profile() {
     window.location.href = '/merchant'
   }
 
-  const isPro = !!(subscription.customerPro?.active || subscription.plan === 'customer_pro')
-  const isMerchantPro = !!(subscription.merchantPro?.active || subscription.plan === 'merchant_pro')
-  const isAnyPro = isPro || isMerchantPro
-
-  const renewDate = subscription.currentPeriodEnd
-    ? new Date(subscription.currentPeriodEnd).toLocaleDateString('en-US', {
+  // Customer profile only cares about customerPro
+  const isPro = !!(subscription.customerPro?.active)
+  const customerProRenewDate = subscription.customerPro?.currentPeriodEnd
+    ? new Date(subscription.customerPro.currentPeriodEnd).toLocaleDateString('en-US', {
         month: 'short', day: 'numeric', year: 'numeric'
       })
     : null
@@ -138,31 +131,24 @@ export default function Profile() {
       <div style={{
         background: 'var(--bg-card)',
         borderRadius: '16px',
-        border: `1px solid ${isAnyPro ? 'rgba(124,58,237,0.4)' : 'var(--border)'}`,
+        border: `1px solid ${isPro ? 'rgba(124,58,237,0.4)' : 'var(--border)'}`,
         padding: '20px', marginBottom: '16px',
         display: 'flex', alignItems: 'center', gap: '14px',
         position: 'relative', overflow: 'hidden'
       }}>
-        {/* Pro gradient top bar */}
-        {isAnyPro && (
+        {isPro && (
           <div style={{
             position: 'absolute', top: 0, left: 0, right: 0, height: '3px',
-            background: isPro && isMerchantPro
-              ? 'linear-gradient(90deg, var(--accent-violet), var(--accent-gold))'
-              : isPro
-              ? 'linear-gradient(90deg, var(--accent-violet), #9333EA)'
-              : 'linear-gradient(90deg, var(--accent-gold), #F97316)'
+            background: 'linear-gradient(90deg, var(--accent-violet), #9333EA)'
           }} />
         )}
-
-        {/* Avatar */}
         {user?.user_metadata?.avatar_url ? (
           <img
             src={user.user_metadata.avatar_url}
             alt="Avatar"
             style={{
               width: '52px', height: '52px', borderRadius: '50%',
-              border: `2px solid ${isAnyPro ? 'var(--accent-violet)' : 'var(--border)'}`
+              border: `2px solid ${isPro ? 'var(--accent-violet)' : 'var(--border)'}`
             }}
           />
         ) : (
@@ -175,8 +161,6 @@ export default function Profile() {
             {user?.user_metadata?.name?.[0] || user?.email?.[0] || '?'}
           </div>
         )}
-
-        {/* Name + badges */}
         <div style={{ flex: 1 }}>
           <div style={{
             display: 'flex', alignItems: 'center',
@@ -194,15 +178,6 @@ export default function Profile() {
                 PRO
               </span>
             )}
-            {isMerchantPro && (
-              <span style={{
-                fontSize: '10px', padding: '2px 8px',
-                background: 'linear-gradient(135deg, var(--accent-gold), #F97316)',
-                borderRadius: '20px', color: 'white', fontWeight: '700'
-              }}>
-                MERCHANT PRO
-              </span>
-            )}
           </div>
           <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0 }}>
             {user?.email}
@@ -210,13 +185,11 @@ export default function Profile() {
         </div>
       </div>
 
-      {/* Subscription status card */}
-      {isAnyPro && (
+      {/* Customer Pro status — only shown when customer pro is active */}
+      {isPro && (
         <div style={{
-          background: isPro
-            ? 'linear-gradient(135deg, rgba(124,58,237,0.15), rgba(147,51,234,0.1))'
-            : 'linear-gradient(135deg, rgba(245,158,11,0.15), rgba(249,115,22,0.1))',
-          border: `1px solid ${isPro ? 'rgba(124,58,237,0.3)' : 'rgba(245,158,11,0.3)'}`,
+          background: 'linear-gradient(135deg, rgba(124,58,237,0.15), rgba(147,51,234,0.1))',
+          border: '1px solid rgba(124,58,237,0.3)',
           borderRadius: '16px', padding: '16px',
           marginBottom: '16px'
         }}>
@@ -229,14 +202,12 @@ export default function Profile() {
               <div>
                 <p style={{
                   fontSize: '14px', fontWeight: '700', margin: 0,
-                  color: isPro ? 'var(--accent-violet)' : 'var(--accent-gold)'
+                  color: 'var(--accent-violet)'
                 }}>
-                  {isPro && isMerchantPro
-                    ? 'Customer Pro + Merchant Pro'
-                    : isPro ? 'Customer Pro' : 'Merchant Pro'}
+                  Customer Pro
                 </p>
                 <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>
-                  {renewDate ? `Renews ${renewDate}` : 'Active subscription'}
+                  {customerProRenewDate ? `Renews ${customerProRenewDate}` : 'Active subscription'}
                 </p>
               </div>
             </div>
@@ -249,30 +220,14 @@ export default function Profile() {
               ✅ Active
             </span>
           </div>
-
-          {/* Features */}
           <div style={{
             display: 'grid', gridTemplateColumns: '1fr 1fr',
             gap: '6px', marginBottom: '12px'
           }}>
-            {isPro && [
-              '✓ Unlimited claims',
-              '✓ Priority AI offers',
-              '✓ Exclusive deals',
-              '✓ No ads'
-            ].map(f => (
-              <span key={f} style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{f}</span>
-            ))}
-            {isMerchantPro && [
-              '✓ Unlimited offers',
-              '✓ Featured placement',
-              '✓ Full analytics',
-              '✓ Priority targeting'
-            ].map(f => (
+            {['✓ Unlimited claims', '✓ Priority AI offers', '✓ Exclusive deals', '✓ No ads'].map(f => (
               <span key={f} style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{f}</span>
             ))}
           </div>
-
           <button
             onClick={() => navigate('/invoices')}
             style={{
@@ -312,14 +267,12 @@ export default function Profile() {
             }}>
               {stat.value}
             </div>
-            <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-              {stat.label}
-            </div>
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{stat.label}</div>
           </div>
         ))}
       </div>
 
-      {/* Upgrade banner — only for non-customer-pro users */}
+      {/* Upgrade banner — only when NOT customer pro */}
       {!isPro && (
         <div style={{
           background: 'linear-gradient(135deg, rgba(124,58,237,0.15), rgba(245,158,11,0.15))',
@@ -380,7 +333,6 @@ export default function Profile() {
             {saving ? 'Saving...' : editing ? 'Save' : 'Edit'}
           </button>
         </div>
-
         {editing ? (
           <>
             <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '10px' }}>
