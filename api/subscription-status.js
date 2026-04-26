@@ -14,12 +14,15 @@ export default async function handler(req, res) {
     const customers = await stripe.customers.list({ email: userEmail, limit: 1 })
 
     if (customers.data.length === 0) {
-      return res.status(200).json({ plan: 'free', active: false })
+      return res.status(200).json({
+        plan: 'free', active: false,
+        currentPeriodEnd: null,
+        customerPro: null, merchantPro: null
+      })
     }
 
     const customer = customers.data[0]
 
-    // Get ALL active subscriptions
     const subscriptions = await stripe.subscriptions.list({
       customer: customer.id,
       status: 'active',
@@ -27,7 +30,11 @@ export default async function handler(req, res) {
     })
 
     if (subscriptions.data.length === 0) {
-      return res.status(200).json({ plan: 'free', active: false })
+      return res.status(200).json({
+        plan: 'free', active: false,
+        currentPeriodEnd: null,
+        customerPro: null, merchantPro: null
+      })
     }
 
     const customerProPriceId = process.env.STRIPE_CUSTOMER_PRO_PRICE_ID
@@ -37,23 +44,23 @@ export default async function handler(req, res) {
     let merchantPro = null
 
     for (const sub of subscriptions.data) {
-      const priceId = sub.items.data[0].price.id
+      const priceId = sub.items?.data?.[0]?.price?.id
+      if (!priceId) continue
+
+      // Safely convert timestamp
+      const periodEnd = sub.current_period_end
+      const periodEndISO = periodEnd
+        ? new Date(periodEnd * 1000).toISOString()
+        : null
+
       if (priceId === customerProPriceId) {
-        customerPro = {
-          active: true,
-          currentPeriodEnd: new Date(sub.current_period_end * 1000).toISOString()
-        }
+        customerPro = { active: true, currentPeriodEnd: periodEndISO }
       }
       if (priceId === merchantProPriceId) {
-        merchantPro = {
-          active: true,
-          currentPeriodEnd: new Date(sub.current_period_end * 1000).toISOString()
-        }
+        merchantPro = { active: true, currentPeriodEnd: periodEndISO }
       }
     }
 
-    // Return most relevant plan — both can be active
-    // Priority: if both active, return customer_pro for customer context
     const plan = customerPro ? 'customer_pro' : merchantPro ? 'merchant_pro' : 'free'
     const currentPeriodEnd = customerPro?.currentPeriodEnd || merchantPro?.currentPeriodEnd || null
 
@@ -61,8 +68,8 @@ export default async function handler(req, res) {
       plan,
       active: !!(customerPro || merchantPro),
       currentPeriodEnd,
-      customerPro: customerPro || null,
-      merchantPro: merchantPro || null
+      customerPro,
+      merchantPro
     })
   } catch (err) {
     console.error('Subscription status error:', err)
