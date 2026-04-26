@@ -14,14 +14,18 @@ export default async function handler(req, res) {
   }
 
   try {
+    const appUrl = process.env.APP_URL || process.env.VITE_APP_URL || 'http://localhost:5173'
+    const successPath = plan === 'merchant_pro' ? '/merchant' : '/profile'
+    const cancelPath = plan === 'merchant_pro' ? '/merchant' : '/profile'
+
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       mode: 'subscription',
       line_items: [{ price: priceId, quantity: 1 }],
       customer_email: userEmail,
       metadata: { userId, plan },
-      success_url: `${process.env.VITE_APP_URL || 'http://localhost:5173'}/profile?subscription=success&plan=${plan}`,
-      cancel_url: `${process.env.VITE_APP_URL || 'http://localhost:5173'}/profile?subscription=cancelled`,
+      success_url: `${appUrl}${successPath}?subscription=success&plan=${plan}`,
+      cancel_url: `${appUrl}${cancelPath}?subscription=cancelled`,
     })
 
     return res.status(200).json({ url: session.url, sessionId: session.id })

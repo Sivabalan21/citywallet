@@ -24,17 +24,33 @@ export default function MerchantDashboard() {
   const [submitting, setSubmitting] = useState(false)
   const [merchantPlan, setMerchantPlan] = useState('free')
 
-useEffect(() => {
-  const checkSub = async () => {
-  try {
-    const res = await fetch(`/api/subscription-status?userEmail=${user.email}`)
-    const data = await res.json()
-    // Check specifically for merchant_pro
-    setMerchantPlan(data.merchantPro?.active ? 'merchant_pro' : 'free')
-  } catch {}
-}
-  if (user) checkSub()
-}, [user])
+  useEffect(() => {
+    const checkSub = async () => {
+      try {
+        const res = await fetch(`/api/subscription-status?userEmail=${user.email}`)
+        const data = await res.json()
+        setMerchantPlan(data.merchantPro?.active ? 'merchant_pro' : 'free')
+      } catch {}
+    }
+    if (user) checkSub()
+  }, [user])
+
+  // Re-fetch after Stripe redirect
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('subscription') === 'success') {
+      window.history.replaceState({}, '', '/merchant')
+      if (user) {
+        setTimeout(async () => {
+          try {
+            const res = await fetch(`/api/subscription-status?userEmail=${user.email}`)
+            const data = await res.json()
+            setMerchantPlan(data.merchantPro?.active ? 'merchant_pro' : 'free')
+          } catch {}
+        }, 2000)
+      }
+    }
+  }, [user])
 
   useEffect(() => {
     if (user) fetchOffers()
@@ -158,6 +174,15 @@ useEffect(() => {
             <h1 style={{ fontSize: '18px', fontWeight: '700', margin: 0 }}>
               {profile?.business_name || 'My Business'}
             </h1>
+            {merchantPlan === 'merchant_pro' && (
+              <span style={{
+                fontSize: '10px', padding: '2px 8px',
+                background: 'linear-gradient(135deg, var(--accent-gold), #F97316)',
+                borderRadius: '20px', color: 'white', fontWeight: '700'
+              }}>
+                PRO
+              </span>
+            )}
           </div>
           <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0 }}>
             {profile?.business_address}
@@ -209,6 +234,82 @@ useEffect(() => {
         ))}
       </div>
 
+      {/* Merchant Pro status or upgrade banner */}
+      {merchantPlan === 'merchant_pro' ? (
+        <div style={{
+          margin: '0 1rem 16px',
+          background: 'rgba(245,158,11,0.15)',
+          border: '1px solid rgba(245,158,11,0.3)',
+          borderRadius: '14px', padding: '12px 14px',
+          display: 'flex', alignItems: 'center',
+          justifyContent: 'space-between'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '16px' }}>⚡</span>
+            <div>
+              <p style={{ fontSize: '13px', fontWeight: '600', margin: 0, color: 'var(--accent-gold)' }}>
+                Merchant Pro — Active
+              </p>
+              <p style={{ fontSize: '11px', color: 'var(--text-muted)', margin: 0 }}>
+                Unlimited offers · Featured placement
+              </p>
+            </div>
+          </div>
+          <span style={{
+            fontSize: '11px', padding: '2px 8px',
+            background: 'rgba(16,185,129,0.15)',
+            border: '1px solid rgba(16,185,129,0.3)',
+            borderRadius: '20px', color: '#10B981', fontWeight: '600'
+          }}>
+            ✅ Active
+          </span>
+        </div>
+      ) : (
+        <div style={{
+          margin: '0 1rem 16px',
+          background: 'linear-gradient(135deg, rgba(245,158,11,0.15), rgba(249,115,22,0.1))',
+          border: '1px solid rgba(245,158,11,0.3)',
+          borderRadius: '14px', padding: '14px',
+          display: 'flex', alignItems: 'center',
+          justifyContent: 'space-between', gap: '10px'
+        }}>
+          <div>
+            <p style={{ fontSize: '13px', fontWeight: '600', margin: '0 0 2px', color: 'var(--accent-gold)' }}>
+              ⚡ Upgrade to Merchant Pro
+            </p>
+            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>
+              Unlimited offers + featured placement · $9.99/mo
+            </p>
+          </div>
+          <button
+            onClick={async () => {
+              const res = await fetch('/api/create-checkout', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  priceId: import.meta.env.VITE_STRIPE_MERCHANT_PRO_PRICE_ID,
+                  userId: user.id,
+                  userEmail: user.email,
+                  plan: 'merchant_pro'
+                })
+              })
+              const data = await res.json()
+              if (data.url) window.location.href = data.url
+            }}
+            style={{
+              padding: '8px 14px',
+              background: 'var(--accent-gold)',
+              border: 'none', borderRadius: '10px',
+              color: 'white', fontSize: '12px',
+              fontWeight: '600', cursor: 'pointer',
+              fontFamily: 'DM Sans, sans-serif', whiteSpace: 'nowrap'
+            }}
+          >
+            Upgrade
+          </button>
+        </div>
+      )}
+
       {/* Tabs */}
       <div style={{
         display: 'flex', gap: '0',
@@ -240,57 +341,9 @@ useEffect(() => {
         ))}
       </div>
 
-      {/* Merchant Pro upgrade — only for free merchants */}
-{merchantPlan !== 'merchant_pro' && (
-  <div style={{
-    margin: '0 1rem 16px',
-    background: 'linear-gradient(135deg, rgba(245,158,11,0.15), rgba(249,115,22,0.1))',
-    border: '1px solid rgba(245,158,11,0.3)',
-    borderRadius: '14px', padding: '14px',
-    display: 'flex', alignItems: 'center',
-    justifyContent: 'space-between', gap: '10px'
-  }}>
-    <div>
-      <p style={{ fontSize: '13px', fontWeight: '600', margin: '0 0 2px', color: 'var(--accent-gold)' }}>
-        ⚡ Upgrade to Merchant Pro
-      </p>
-      <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>
-        Unlimited offers + featured placement
-      </p>
-    </div>
-    <button
-      onClick={async () => {
-        const res = await fetch('/api/create-checkout', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            priceId: import.meta.env.VITE_STRIPE_MERCHANT_PRO_PRICE_ID,
-            userId: user.id,
-            userEmail: user.email,
-            plan: 'merchant_pro'
-          })
-        })
-        const data = await res.json()
-        if (data.url) window.location.href = data.url
-      }}
-      style={{
-        padding: '8px 14px',
-        background: 'var(--accent-gold)',
-        border: 'none', borderRadius: '10px',
-        color: 'white', fontSize: '12px',
-        fontWeight: '600', cursor: 'pointer',
-        fontFamily: 'DM Sans, sans-serif', whiteSpace: 'nowrap'
-      }}
-    >
-      Upgrade
-    </button>
-  </div>
-)}
-
       {/* OFFERS TAB */}
       {activeTab === 'offers' && (
         <div style={{ padding: '0 1rem' }}>
-          {/* Add offer button */}
           <button
             onClick={() => setShowAddOffer(!showAddOffer)}
             style={{
@@ -309,7 +362,6 @@ useEffect(() => {
             {showAddOffer ? '✕ Cancel' : '+ Add New Offer'}
           </button>
 
-          {/* Add offer form */}
           {showAddOffer && (
             <div style={{
               background: 'var(--bg-card)',
@@ -397,7 +449,6 @@ useEffect(() => {
             </div>
           )}
 
-          {/* Offers list */}
           {loading ? (
             <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>
               Loading offers...
@@ -455,7 +506,6 @@ useEffect(() => {
                       </span>
                     </div>
                   </div>
-
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     <button
                       onClick={() => handleToggleOffer(offer.id, offer.is_active)}
@@ -500,10 +550,7 @@ useEffect(() => {
           {!scanResult ? (
             <div style={{ textAlign: 'center', paddingTop: '2rem' }}>
               <div style={{ fontSize: '64px', marginBottom: '1rem' }}>📱</div>
-              <p style={{
-                fontSize: '16px', fontWeight: '600',
-                marginBottom: '8px'
-              }}>
+              <p style={{ fontSize: '16px', fontWeight: '600', marginBottom: '8px' }}>
                 Scan Customer QR
               </p>
               <p style={{
@@ -528,7 +575,6 @@ useEffect(() => {
             </div>
           ) : (
             <div>
-              {/* Scan result */}
               <div style={{
                 background: scanResult.valid ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)',
                 border: `1.5px solid ${scanResult.valid ? '#10B981' : '#EF4444'}`,
@@ -543,11 +589,8 @@ useEffect(() => {
                   color: scanResult.valid ? '#10B981' : '#EF4444',
                   margin: '0 0 8px'
                 }}>
-                  {scanResult.redeemed
-                    ? 'Offer Redeemed!'
-                    : scanResult.valid
-                    ? 'Valid Offer'
-                    : 'Invalid QR Code'}
+                  {scanResult.redeemed ? 'Offer Redeemed!' :
+                   scanResult.valid ? 'Valid Offer' : 'Invalid QR Code'}
                 </p>
                 {scanResult.valid && scanResult.offer && (
                   <>
@@ -557,9 +600,7 @@ useEffect(() => {
                     }}>
                       {scanResult.offer.merchant_name}
                     </p>
-                    <p style={{
-                      fontSize: '14px', color: 'var(--text-secondary)', margin: 0
-                    }}>
+                    <p style={{ fontSize: '14px', color: 'var(--text-secondary)', margin: 0 }}>
                       {scanResult.offer.offer_text}
                     </p>
                   </>
@@ -571,7 +612,6 @@ useEffect(() => {
                 )}
               </div>
 
-              {/* Redeem button */}
               {scanResult.valid && !scanResult.redeemed && (
                 <button
                   onClick={handleRedeem}
@@ -590,7 +630,7 @@ useEffect(() => {
               )}
 
               <button
-                onClick={() => { setScanResult(null) }}
+                onClick={() => setScanResult(null)}
                 style={{
                   width: '100%', padding: '14px',
                   background: 'var(--bg-card)',
@@ -608,7 +648,6 @@ useEffect(() => {
         </div>
       )}
 
-      {/* QR Scanner modal */}
       {showScanner && (
         <QRScanner
           onScan={handleQRScan}

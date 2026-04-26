@@ -69,10 +69,18 @@ export default function Invoices() {
           }}>
             <div>
               <p style={{ fontSize: '16px', fontWeight: '700', margin: '0 0 2px' }}>
-                {subscription.plan === 'customer_pro' ? 'Customer Pro' : 'Merchant Pro'}
+                {subscription.customerPro?.active && subscription.merchantPro?.active
+  ? 'Customer Pro + Merchant Pro'
+  : subscription.customerPro?.active || subscription.plan === 'customer_pro'
+  ? 'Customer Pro'
+  : 'Merchant Pro'}
               </p>
               <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0 }}>
-                {subscription.plan === 'customer_pro' ? '$4.99' : '$9.99'}/month
+                {subscription.customerPro?.active && subscription.merchantPro?.active
+  ? '$14.98'
+  : subscription.customerPro?.active || subscription.plan === 'customer_pro'
+  ? '$4.99'
+  : '$9.99'}/month
               </p>
             </div>
             <div style={{ textAlign: 'right' }}>
